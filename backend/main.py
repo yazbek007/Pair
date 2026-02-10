@@ -7,6 +7,8 @@ import json
 import asyncio
 from typing import Dict, List, Optional
 import logging
+import pandas as pd  # <-- أضف هذا السطر
+import sqlite3  # <-- أضف هذا أيضاً إذا كنت بحاجة إليه
 
 from backend.data_fetcher import data_fetcher
 from backend.analyzer import analyzer
@@ -139,14 +141,31 @@ async def get_current_analysis():
                 except:
                     signals = []
             
+            # التعامل مع القيم NaN
+            price_usdt = row.get("price_usdt")
+            if pd.isna(price_usdt):
+                price_usdt = 0.0
+            
+            score = row.get("score")
+            if pd.isna(score):
+                score = 0.0
+            
+            rsi = row.get("rsi")
+            if pd.isna(rsi):
+                rsi = None
+            
+            atr_percent = row.get("atr_percent")
+            if pd.isna(atr_percent):
+                atr_percent = None
+            
             coin_data = {
                 "symbol": row.get("symbol", ""),
-                "price_usdt": float(row.get("price_usdt", 0)),
-                "score": float(row.get("score", 0)),
+                "price_usdt": float(price_usdt),
+                "score": float(score),
                 "rank": int(row.get("rank", 0)),
                 "recommendation": row.get("recommendation", "NEUTRAL"),
-                "rsi": float(row.get("rsi", 0)) if pd.notna(row.get("rsi")) else None,
-                "atr_percent": float(row.get("atr_percent", 0)) if pd.notna(row.get("atr_percent")) else None,
+                "rsi": float(rsi) if rsi is not None else None,
+                "atr_percent": float(atr_percent) if atr_percent is not None else None,
                 "volume_usd": float(row.get("volume_usd", 0)),
                 "spread_percent": float(row.get("spread_percent", 0)),
                 "signals": signals,
@@ -158,8 +177,26 @@ async def get_current_analysis():
         # الحصول على أفضل الأزواج
         pairs_data = []
         try:
-            pairs_df = db_manager.get_recent_analysis(hours=24, limit=50)
-            # يمكنك هنا إضافة منطق لتحليل الأزواج
+            # جلب بيانات الأزواج من جدول trading_pairs
+            conn = sqlite3.connect(db_manager.db_path)
+            cutoff = datetime.now(SYRIA_TZ) - timedelta(hours=24)
+            query = '''
+                SELECT pair, recommendation, pair_score 
+                FROM trading_pairs 
+                WHERE timestamp >= ? 
+                ORDER BY pair_score DESC 
+                LIMIT 5
+            '''
+            pairs_df = pd.read_sql_query(query, conn, params=(cutoff,))
+            conn.close()
+            
+            if not pairs_df.empty:
+                for _, row in pairs_df.iterrows():
+                    pairs_data.append({
+                        "pair": row["pair"],
+                        "recommendation": row["recommendation"],
+                        "score": row["pair_score"]
+                    })
         except Exception as e:
             logger.error(f"Error getting pairs data: {e}")
         
@@ -167,7 +204,7 @@ async def get_current_analysis():
             "timestamp": datetime.now(SYRIA_TZ).isoformat(),
             "total_coins": len(coins_data),
             "coins": coins_data,
-            "top_pairs": pairs_data[:5],
+            "top_pairs": pairs_data,
             "market_summary": {
                 "average_score": float(df["score"].mean()) if not df.empty else 0,
                 "bullish_count": int(len(df[df["score"] >= 60])) if not df.empty else 0,
@@ -228,14 +265,27 @@ async def get_coins_ranking(limit: int = 20):
                 except:
                     signals = []
             
+            # التعامل مع القيم NaN
+            score = row.get("score")
+            if pd.isna(score):
+                score = 0.0
+            
+            price = row.get("price_usdt")
+            if pd.isna(price):
+                price = 0.0
+            
+            volume = row.get("volume_usd")
+            if pd.isna(volume):
+                volume = 0.0
+            
             ranking.append({
                 "symbol": row.get("symbol", ""),
-                "score": float(row.get("score", 0)),
+                "score": float(score),
                 "rank": int(row.get("rank", 0)),
                 "recommendation": row.get("recommendation", "NEUTRAL"),
-                "price": float(row.get("price_usdt", 0)),
+                "price": float(price),
                 "change_24h": 0,  # تحتاج بيانات إضافية
-                "volume": float(row.get("volume_usd", 0)),
+                "volume": float(volume),
                 "signals": signals[:3] if signals else []
             })
         
@@ -270,6 +320,30 @@ async def get_coins_ranking(limit: int = 20):
     except Exception as e:
         logger.error(f"Error in get_coins_ranking: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/debug/data")
+async def debug_data():
+    """نقطة نهاية تصحيح للبيانات"""
+    try:
+        # الحصول على بيانات التحليل
+        df = db_manager.get_recent_analysis(hours=1, limit=5)
+        
+        # الحصول على بيانات الأزواج
+        conn = sqlite3.connect(db_manager.db_path)
+        pairs_df = pd.read_sql_query("SELECT * FROM trading_pairs ORDER BY timestamp DESC LIMIT 5", conn)
+        conn.close()
+        
+        return {
+            "analysis_columns": list(df.columns) if not df.empty else [],
+            "analysis_rows": len(df),
+            "pairs_columns": list(pairs_df.columns) if not pairs_df.empty else [],
+            "pairs_rows": len(pairs_df),
+            "sample_analysis": df.head(2).to_dict('records') if not df.empty else [],
+            "sample_pairs": pairs_df.head(2).to_dict('records') if not pairs_df.empty else []
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/api/analyze/now")
 async def trigger_analysis_now(background_tasks: BackgroundTasks):
