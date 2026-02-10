@@ -15,6 +15,9 @@ from backend.database import db_manager
 from bot.scheduler import scheduler
 from config import SYRIA_TZ
 
+
+logger = logging.getLogger(__name__)
+
 # إعداد التطبيق
 app = FastAPI(
     title="Crypto Relative Strength Scanner",
@@ -104,28 +107,61 @@ async def get_current_analysis():
         df = db_manager.get_recent_analysis(hours=1, limit=20)
         
         if df.empty:
-            return {"error": "No analysis data available yet"}
+            logger.warning("No analysis data available yet")
+            return {
+                "timestamp": datetime.now(SYRIA_TZ).isoformat(),
+                "total_coins": 0,
+                "coins": [],
+                "top_pairs": [],
+                "market_summary": {
+                    "average_score": 0,
+                    "bullish_count": 0,
+                    "bearish_count": 0,
+                    "strong_signals": 0
+                }
+            }
         
         # تحويل البيانات
         coins_data = []
         for _, row in df.iterrows():
+            # التأكد من وجود الأعمدة
+            returns_vs_btc = row.get("returns_vs_btc", {})
+            if isinstance(returns_vs_btc, str):
+                try:
+                    returns_vs_btc = json.loads(returns_vs_btc)
+                except:
+                    returns_vs_btc = {}
+            
+            signals = row.get("signals", [])
+            if isinstance(signals, str):
+                try:
+                    signals = json.loads(signals)
+                except:
+                    signals = []
+            
             coin_data = {
-                "symbol": row["symbol"],
-                "price_usdt": row["price_usdt"],
-                "score": row["score"],
-                "rank": row["rank"],
-                "recommendation": row["recommendation"],
-                "rsi": row["rsi"],
-                "atr_percent": row["atr_percent"],
-                "volume_usd": row["volume_usdt"],
-                "signals": row["signals"],
-                "timestamp": row["timestamp"]
+                "symbol": row.get("symbol", ""),
+                "price_usdt": float(row.get("price_usdt", 0)),
+                "score": float(row.get("score", 0)),
+                "rank": int(row.get("rank", 0)),
+                "recommendation": row.get("recommendation", "NEUTRAL"),
+                "rsi": float(row.get("rsi", 0)) if pd.notna(row.get("rsi")) else None,
+                "atr_percent": float(row.get("atr_percent", 0)) if pd.notna(row.get("atr_percent")) else None,
+                "volume_usd": float(row.get("volume_usd", 0)),
+                "spread_percent": float(row.get("spread_percent", 0)),
+                "signals": signals,
+                "timestamp": row.get("timestamp"),
+                "returns_vs_btc": returns_vs_btc
             }
             coins_data.append(coin_data)
         
         # الحصول على أفضل الأزواج
         pairs_data = []
-        pairs_df = db_manager.get_recent_analysis(hours=1, limit=10)
+        try:
+            pairs_df = db_manager.get_recent_analysis(hours=24, limit=50)
+            # يمكنك هنا إضافة منطق لتحليل الأزواج
+        except Exception as e:
+            logger.error(f"Error getting pairs data: {e}")
         
         return {
             "timestamp": datetime.now(SYRIA_TZ).isoformat(),
@@ -133,14 +169,15 @@ async def get_current_analysis():
             "coins": coins_data,
             "top_pairs": pairs_data[:5],
             "market_summary": {
-                "average_score": df["score"].mean() if not df.empty else 0,
-                "bullish_count": len(df[df["score"] >= 60]) if not df.empty else 0,
-                "bearish_count": len(df[df["score"] <= 40]) if not df.empty else 0,
-                "strong_signals": len(df[df["score"] >= 80]) if not df.empty else 0
+                "average_score": float(df["score"].mean()) if not df.empty else 0,
+                "bullish_count": int(len(df[df["score"] >= 60])) if not df.empty else 0,
+                "bearish_count": int(len(df[df["score"] <= 40])) if not df.empty else 0,
+                "strong_signals": int(len(df[df["score"] >= 80])) if not df.empty else 0
             }
         }
         
     except Exception as e:
+        logger.error(f"Error in get_current_analysis: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/pairs/top")
@@ -169,33 +206,69 @@ async def get_coins_ranking(limit: int = 20):
         df = db_manager.get_recent_analysis(hours=24, limit=limit)
         
         if df.empty:
-            return {"error": "No data available"}
+            logger.warning("No ranking data available")
+            return {
+                "timestamp": datetime.now(SYRIA_TZ).isoformat(),
+                "ranking": [],
+                "statistics": {
+                    "top_score": 0,
+                    "avg_score": 0,
+                    "strong_buy": 0,
+                    "strong_sell": 0
+                }
+            }
         
         ranking = []
         for _, row in df.iterrows():
+            # التحقق من وجود الأعمدة
+            signals = row.get("signals", [])
+            if isinstance(signals, str):
+                try:
+                    signals = json.loads(signals)
+                except:
+                    signals = []
+            
             ranking.append({
-                "symbol": row["symbol"],
-                "score": row["score"],
-                "rank": row["rank"],
-                "recommendation": row["recommendation"],
-                "price": row["price_usdt"],
+                "symbol": row.get("symbol", ""),
+                "score": float(row.get("score", 0)),
+                "rank": int(row.get("rank", 0)),
+                "recommendation": row.get("recommendation", "NEUTRAL"),
+                "price": float(row.get("price_usdt", 0)),
                 "change_24h": 0,  # تحتاج بيانات إضافية
-                "volume": row["volume_usdt"],
-                "signals": row["signals"][:3] if row["signals"] else []
+                "volume": float(row.get("volume_usd", 0)),
+                "signals": signals[:3] if signals else []
             })
+        
+        # إعادة ترتيب حسب الرتبة
+        ranking = sorted(ranking, key=lambda x: x["rank"])
+        
+        # حساب الإحصائيات
+        if ranking:
+            scores = [r["score"] for r in ranking]
+            recommendations = [r["recommendation"] for r in ranking]
+            
+            statistics = {
+                "top_score": max(scores) if scores else 0,
+                "avg_score": sum(scores) / len(scores) if scores else 0,
+                "strong_buy": len([r for r in recommendations if "STRONG_BUY" in r]),
+                "strong_sell": len([r for r in recommendations if "STRONG_SELL" in r])
+            }
+        else:
+            statistics = {
+                "top_score": 0,
+                "avg_score": 0,
+                "strong_buy": 0,
+                "strong_sell": 0
+            }
         
         return {
             "timestamp": datetime.now(SYRIA_TZ).isoformat(),
-            "ranking": sorted(ranking, key=lambda x: x["rank"]),
-            "statistics": {
-                "top_score": max([r["score"] for r in ranking]) if ranking else 0,
-                "avg_score": sum([r["score"] for r in ranking]) / len(ranking) if ranking else 0,
-                "strong_buy": len([r for r in ranking if "STRONG_BUY" in r["recommendation"]]),
-                "strong_sell": len([r for r in ranking if "STRONG_SELL" in r["recommendation"]])
-            }
+            "ranking": ranking,
+            "statistics": statistics
         }
         
     except Exception as e:
+        logger.error(f"Error in get_coins_ranking: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/analyze/now")
@@ -344,6 +417,36 @@ async def get_chart_data(symbol: str, timeframe: str = "1h", limit: int = 100):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/debug/database")
+async def debug_database():
+    """نقطة نهاية تصحيح قاعدة البيانات"""
+    try:
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        # التحقق من الجداول
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = cursor.fetchall()
+        
+        # التحقق من عدد الصفوف في كل جدول
+        table_counts = {}
+        for table in tables:
+            table_name = table[0]
+            cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+            count = cursor.fetchone()[0]
+            table_counts[table_name] = count
+        
+        conn.close()
+        
+        return {
+            "db_path": db_manager.db_path,
+            "tables": [t[0] for t in tables],
+            "row_counts": table_counts
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
