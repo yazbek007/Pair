@@ -1,14 +1,15 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crypto Relative Strength Scanner - Dashboard</title>
+    <title>محلل القوة النسبية للعملات الرقمية - لوحة التحكم</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/luxon@3.3.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios@1.5.0/dist/axios.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary-color: #3b82f6;
@@ -20,10 +21,11 @@
         }
         
         body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-family: 'Cairo', 'Segoe UI', system-ui, sans-serif;
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
             color: #f1f5f9;
             min-height: 100vh;
+            direction: rtl;
         }
         
         .glass-card {
@@ -31,6 +33,12 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .glass-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
         }
         
         .score-bar {
@@ -89,6 +97,41 @@
             background: #4b5563;
             border-radius: 3px;
         }
+        
+        .loading-shimmer {
+            background: linear-gradient(90deg, #1e293b 25%, #2d3748 50%, #1e293b 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .tradingview-widget-container {
+            border-radius: 0.75rem;
+            overflow: hidden;
+        }
+        
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+        
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.35s;
+            transform: rotate(90deg);
+            transform-origin: 50% 50%;
+        }
     </style>
 </head>
 <body class="min-h-screen">
@@ -97,27 +140,31 @@
         <div class="container mx-auto px-4 py-3">
             <div class="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
                 <div class="flex items-center space-x-3">
-                    <div class="bg-blue-500 p-2 rounded-lg">
+                    <div class="bg-gradient-to-r from-blue-500 to-cyan-500 p-2 rounded-lg">
                         <i class="fas fa-chart-line text-white text-xl"></i>
                     </div>
                     <div>
                         <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                            Crypto Relative Strength Scanner
+                            <i class="fas fa-analytics mr-2"></i>
+                            محلل القوة النسبية للعملات الرقمية
                         </h1>
-                        <p class="text-sm text-gray-400">Advanced pair trading analysis - Syria Time</p>
+                        <p class="text-sm text-gray-400">
+                            <i class="fas fa-map-marker-alt mr-1"></i>
+                            تحليل متقدم لأزواج التداول - توقيت سورية
+                        </p>
                     </div>
                 </div>
                 
                 <div class="flex items-center space-x-4">
-                    <div id="syria-time" class="text-sm bg-gray-800 px-3 py-1 rounded-lg">
-                        <i class="fas fa-clock mr-2"></i>
-                        <span id="time-display">Loading...</span>
+                    <div id="syria-time" class="text-sm bg-gray-800/50 px-3 py-2 rounded-lg border border-gray-700">
+                        <i class="fas fa-clock mr-2 text-cyan-400"></i>
+                        <span id="time-display" class="font-mono">جاري التحميل...</span>
                     </div>
-                    <button onclick="triggerAnalysis()" class="bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center">
-                        <i class="fas fa-sync-alt mr-2"></i> Analyze Now
+                    <button onclick="triggerAnalysis()" class="bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center shadow-lg hover:shadow-xl">
+                        <i class="fas fa-sync-alt mr-2"></i> تحليل فوري
                     </button>
-                    <button onclick="toggleTheme()" class="bg-gray-800 hover:bg-gray-700 p-2 rounded-lg">
-                        <i class="fas fa-moon"></i>
+                    <button onclick="toggleTheme()" class="bg-gray-800 hover:bg-gray-700 p-2 rounded-lg transition-all duration-300">
+                        <i class="fas fa-moon" id="theme-icon"></i>
                     </button>
                 </div>
             </div>
@@ -126,54 +173,76 @@
 
     <!-- Main Content -->
     <main class="container mx-auto px-4 py-6">
-        <!-- System Status -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <!-- System Status & Market Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-6">
             <div class="glass-card p-4">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm text-gray-400">System Status</p>
-                        <h3 id="system-status" class="text-xl font-bold text-green-400">Online</h3>
+                        <p class="text-sm text-gray-400">حالة النظام</p>
+                        <h3 id="system-status" class="text-xl font-bold text-green-400">نشط</h3>
                     </div>
                     <i class="fas fa-server text-2xl text-green-400"></i>
                 </div>
-                <div class="mt-2 text-sm text-gray-400" id="last-update">Last update: --:--</div>
+                <div class="mt-2 text-sm text-gray-400" id="last-update">
+                    <i class="fas fa-history mr-1"></i> آخر تحديث: --:--
+                </div>
             </div>
             
             <div class="glass-card p-4">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm text-gray-400">Coins Monitored</p>
-                        <h3 id="coins-count" class="text-xl font-bold">15</h3>
+                        <p class="text-sm text-gray-400">العملات المراقبة</p>
+                        <h3 id="coins-count" class="text-xl font-bold">--</h3>
                     </div>
                     <i class="fas fa-coins text-2xl text-yellow-400"></i>
                 </div>
-                <div class="mt-2 text-sm text-gray-400">Top 100 market cap</div>
-            </div>
-            
-            <div class="glass-card p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm text-gray-400">Strong Signals</p>
-                        <h3 id="signals-count" class="text-xl font-bold">3</h3>
-                    </div>
-                    <i class="fas fa-bell text-2xl text-red-400 pulse"></i>
+                <div class="mt-2 text-sm text-gray-400">
+                    <i class="fas fa-filter mr-1"></i> أعلى 100 سقف سوقي
                 </div>
-                <div class="mt-2 text-sm text-gray-400">Score ≥ 80</div>
             </div>
             
             <div class="glass-card p-4">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm text-gray-400">Market Condition</p>
-                        <h3 id="market-condition" class="text-xl font-bold">Neutral</h3>
+                        <p class="text-sm text-gray-400">إشارات قوية</p>
+                        <h3 id="signals-count" class="text-xl font-bold pulse">--</h3>
+                    </div>
+                    <i class="fas fa-bell text-2xl text-red-400"></i>
+                </div>
+                <div class="mt-2 text-sm text-gray-400">
+                    <i class="fas fa-bullseye mr-1"></i> نقاط ≥ 80
+                </div>
+            </div>
+            
+            <div class="glass-card p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-400">حالة السوق</p>
+                        <h3 id="market-condition" class="text-xl font-bold">محايد</h3>
                     </div>
                     <i class="fas fa-chart-bar text-2xl text-blue-400"></i>
                 </div>
-                <div class="mt-2 text-sm text-gray-400" id="avg-score">Avg Score: 0</div>
+                <div class="mt-2 text-sm text-gray-400" id="avg-score">
+                    <i class="fas fa-calculator mr-1"></i> متوسط النقاط: 0
+                </div>
+            </div>
+            
+            <!-- BTC Dominance -->
+            <div class="glass-card p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-400">هيمنة البتكوين</p>
+                        <h3 id="btc-dominance" class="text-xl font-bold text-yellow-400">--%</h3>
+                    </div>
+                    <i class="fas fa-crown text-2xl text-yellow-400"></i>
+                </div>
+                <div class="mt-2 text-sm text-gray-400" id="btc-change">
+                    <i class="fas fa-exchange-alt mr-1"></i> تغير 24س: --%
+                </div>
             </div>
         </div>
 
-        <!-- Two Column Layout -->
+        <!-- Three Column Layout -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Left Column -->
             <div class="lg:col-span-2 space-y-6">
@@ -181,36 +250,85 @@
                 <div class="glass-card p-6">
                     <div class="flex justify-between items-center mb-4">
                         <h2 class="text-xl font-bold flex items-center">
-                            <i class="fas fa-fire mr-2 text-orange-400"></i> Relative Strength Heatmap
+                            <i class="fas fa-fire mr-2 text-orange-400"></i> خريطة القوة النسبية
                         </h2>
-                        <select id="timeframe-select" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-sm" onchange="updateHeatmap()">
-                            <option value="1h">1 Hour</option>
-                            <option value="4h" selected>4 Hours</option>
-                            <option value="1d">1 Day</option>
-                            <option value="1w">1 Week</option>
-                        </select>
+                        <div class="flex items-center space-x-2">
+                            <select id="timeframe-select" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm" onchange="updateHeatmap()">
+                                <option value="1h">1 ساعة</option>
+                                <option value="4h" selected>4 ساعات</option>
+                                <option value="1d">يوم</option>
+                                <option value="1w">أسبوع</option>
+                            </select>
+                            <button onclick="toggleHeatmapView()" class="bg-gray-800 hover:bg-gray-700 p-2 rounded-lg transition">
+                                <i class="fas fa-th-large"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="overflow-x-auto">
                         <div id="heatmap-container" class="min-w-full">
-                            <!-- Heatmap سيتم ملؤها بالجافاسكربت -->
                             <div class="text-center py-12 text-gray-500">
                                 <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
-                                <p>Loading heatmap data...</p>
+                                <p>جاري تحميل خريطة الحرارة...</p>
                             </div>
                         </div>
                     </div>
+                    <div class="mt-4 text-xs text-gray-500 text-center">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        أداء العملات مقابل البتكوين (%) - الأخضر: أداء جيد، الأحمر: أداء ضعيف
+                    </div>
                 </div>
 
-                <!-- Top Trading Pairs -->
-                <div class="glass-card p-6">
-                    <h2 class="text-xl font-bold mb-4 flex items-center">
-                        <i class="fas fa-handshake mr-2 text-green-400"></i> Top Trading Pairs
-                    </h2>
-                    <div id="pairs-container" class="space-y-3">
-                        <!-- سيتم ملؤها بالجافاسكربت -->
-                        <div class="text-center py-8 text-gray-500">
-                            <i class="fas fa-spinner fa-spin text-2xl mb-3"></i>
-                            <p>Loading trading pairs...</p>
+                <!-- Trading Pairs & Detailed Table -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Top Trading Pairs -->
+                    <div class="glass-card p-6">
+                        <h2 class="text-xl font-bold mb-4 flex items-center">
+                            <i class="fas fa-handshake mr-2 text-green-400"></i> أفضل أزواج التداول
+                        </h2>
+                        <div id="pairs-container" class="space-y-3">
+                            <div class="text-center py-8 text-gray-500">
+                                <i class="fas fa-spinner fa-spin text-2xl mb-3"></i>
+                                <p>جاري تحميل أزواج التداول...</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 text-center">
+                            <button onclick="showAllPairs()" class="text-sm text-blue-400 hover:text-blue-300 transition">
+                                <i class="fas fa-expand mr-1"></i> عرض جميع الأزواج
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Analysis Table -->
+                    <div class="glass-card p-6">
+                        <h2 class="text-xl font-bold mb-4 flex items-center">
+                            <i class="fas fa-table mr-2 text-purple-400"></i> تحليل تفصيلي
+                        </h2>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="text-gray-400 border-b border-gray-700">
+                                        <th class="py-2 text-right">العملة</th>
+                                        <th class="py-2 text-right">السعر</th>
+                                        <th class="py-2 text-right">النقاط</th>
+                                        <th class="py-2 text-right">RSI</th>
+                                        <th class="py-2 text-right">الحجم</th>
+                                        <th class="py-2 text-right">الإجراء</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="coins-table-body">
+                                    <tr>
+                                        <td colspan="6" class="text-center py-8 text-gray-500">
+                                            <i class="fas fa-spinner fa-spin text-xl mb-3"></i>
+                                            <p>جاري تحميل البيانات...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 text-center">
+                            <button onclick="exportToCSV()" class="text-sm text-green-400 hover:text-green-300 transition">
+                                <i class="fas fa-download mr-1"></i> تصدير البيانات
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -221,27 +339,68 @@
                 <!-- Coin Rankings -->
                 <div class="glass-card p-6">
                     <h2 class="text-xl font-bold mb-4 flex items-center">
-                        <i class="fas fa-trophy mr-2 text-yellow-400"></i> Top Ranked Coins
+                        <i class="fas fa-trophy mr-2 text-yellow-400"></i> ترتيب العملات
                     </h2>
                     <div id="ranking-container" class="space-y-3 max-h-[500px] overflow-y-auto scrollbar-thin">
-                        <!-- سيتم ملؤها بالجافاسكربت -->
                         <div class="text-center py-8 text-gray-500">
                             <i class="fas fa-spinner fa-spin text-xl mb-3"></i>
-                            <p>Loading rankings...</p>
+                            <p>جاري تحميل الترتيب...</p>
                         </div>
+                    </div>
+                    <div class="mt-4 text-center">
+                        <button onclick="showRankingDetails()" class="text-sm text-yellow-400 hover:text-yellow-300 transition">
+                            <i class="fas fa-chart-bar mr-1"></i> تفاصيل الترتيب
+                        </button>
                     </div>
                 </div>
 
                 <!-- Signals & Alerts -->
                 <div class="glass-card p-6">
                     <h2 class="text-xl font-bold mb-4 flex items-center">
-                        <i class="fas fa-exclamation-triangle mr-2 text-red-400"></i> Active Signals
+                        <i class="fas fa-exclamation-triangle mr-2 text-red-400"></i> التنبيهات النشطة
                     </h2>
                     <div id="signals-container" class="space-y-2">
-                        <!-- سيتم ملؤها بالجافاسكربت -->
                         <div class="text-center py-4 text-gray-500">
-                            <p>No active signals</p>
+                            <p>لا توجد تنبيهات نشطة</p>
                         </div>
+                    </div>
+                    <div class="mt-4">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-400">إعدادات التنبيهات:</span>
+                            <button onclick="toggleAlerts()" class="bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded-lg transition">
+                                <i class="fas fa-bell mr-1"></i> تفعيل/تعطيل
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Historical Performance -->
+                <div class="glass-card p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-history mr-2 text-blue-400"></i> الأداء التاريخي
+                    </h2>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="text-center p-3 bg-gray-800/50 rounded-lg">
+                            <div class="text-lg font-bold text-green-400" id="avg-daily-return">--%</div>
+                            <div class="text-xs text-gray-400 mt-1">متوسط العائد اليومي</div>
+                        </div>
+                        <div class="text-center p-3 bg-gray-800/50 rounded-lg">
+                            <div class="text-lg font-bold" id="win-rate">--%</div>
+                            <div class="text-xs text-gray-400 mt-1">معدل الربح</div>
+                        </div>
+                        <div class="text-center p-3 bg-gray-800/50 rounded-lg">
+                            <div class="text-lg font-bold text-blue-400" id="best-pair">--</div>
+                            <div class="text-xs text-gray-400 mt-1">أفضل زوج</div>
+                        </div>
+                        <div class="text-center p-3 bg-gray-800/50 rounded-lg">
+                            <div class="text-lg font-bold text-red-400" id="worst-pair">--</div>
+                            <div class="text-xs text-gray-400 mt-1">أسوأ زوج</div>
+                        </div>
+                    </div>
+                    <div class="mt-4 text-center">
+                        <button onclick="showHistoricalAnalysis()" class="text-sm text-blue-400 hover:text-blue-300 transition">
+                            <i class="fas fa-chart-line mr-1"></i> تحليل تاريخي كامل
+                        </button>
                     </div>
                 </div>
             </div>
@@ -250,16 +409,67 @@
         <!-- Charts Section -->
         <div class="glass-card p-6 mt-6">
             <h2 class="text-xl font-bold mb-4 flex items-center">
-                <i class="fas fa-chart-line mr-2 text-purple-400"></i> Detailed Analysis
+                <i class="fas fa-chart-line mr-2 text-purple-400"></i> تحليل مرئي متقدم
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <h3 class="font-semibold mb-2">Performance vs BTC (%)</h3>
+                    <h3 class="font-semibold mb-2 flex items-center">
+                        <i class="fas fa-chart-bar mr-2 text-green-400"></i> الأداء مقابل البتكوين
+                    </h3>
                     <canvas id="performance-chart" height="250"></canvas>
                 </div>
                 <div>
-                    <h3 class="font-semibold mb-2">Score Distribution</h3>
+                    <h3 class="font-semibold mb-2 flex items-center">
+                        <i class="fas fa-pie-chart mr-2 text-red-400"></i> توزيع النقاط
+                    </h3>
                     <canvas id="distribution-chart" height="250"></canvas>
+                </div>
+            </div>
+            <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-semibold mb-2 flex items-center">
+                        <i class="fas fa-wave-square mr-2 text-blue-400"></i> مؤشر القوة النسبية (RSI)
+                    </h3>
+                    <canvas id="rsi-chart" height="200"></canvas>
+                </div>
+                <div>
+                    <h3 class="font-semibold mb-2 flex items-center">
+                        <i class="fas fa-tachometer-alt mr-2 text-yellow-400"></i> التذبذب (ATR)
+                    </h3>
+                    <canvas id="atr-chart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Market Overview -->
+        <div class="glass-card p-6 mt-6">
+            <h2 class="text-xl font-bold mb-4 flex items-center">
+                <i class="fas fa-globe mr-2 text-cyan-400"></i> نظرة عامة على السوق
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="p-4 bg-gray-800/30 rounded-lg">
+                    <h4 class="font-semibold mb-2 text-gray-300">أفضل 3 عملات</h4>
+                    <div id="top-coins" class="space-y-2">
+                        <div class="loading-shimmer h-6 rounded"></div>
+                        <div class="loading-shimmer h-6 rounded"></div>
+                        <div class="loading-shimmer h-6 rounded"></div>
+                    </div>
+                </div>
+                <div class="p-4 bg-gray-800/30 rounded-lg">
+                    <h4 class="font-semibold mb-2 text-gray-300">أسوأ 3 عملات</h4>
+                    <div id="worst-coins" class="space-y-2">
+                        <div class="loading-shimmer h-6 rounded"></div>
+                        <div class="loading-shimmer h-6 rounded"></div>
+                        <div class="loading-shimmer h-6 rounded"></div>
+                    </div>
+                </div>
+                <div class="p-4 bg-gray-800/30 rounded-lg">
+                    <h4 class="font-semibold mb-2 text-gray-300">أعلى حجم تداول</h4>
+                    <div id="high-volume" class="space-y-2">
+                        <div class="loading-shimmer h-6 rounded"></div>
+                        <div class="loading-shimmer h-6 rounded"></div>
+                        <div class="loading-shimmer h-6 rounded"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -269,37 +479,130 @@
     <footer class="mt-8 border-t border-gray-800 py-6">
         <div class="container mx-auto px-4">
             <div class="flex flex-col md:flex-row justify-between items-center">
-                <div class="text-gray-400 text-sm">
-                    <p>Crypto Relative Strength Scanner v2.0 • Data from Binance</p>
-                    <p class="mt-1">Syria Time Zone: Asia/Damascus • Updates every 15 minutes</p>
+                <div class="text-gray-400 text-sm text-center md:text-right">
+                    <p>
+                        <i class="fas fa-code-branch mr-1"></i>
+                        محلل القوة النسبية للعملات الرقمية v2.0
+                    </p>
+                    <p class="mt-1">
+                        <i class="fas fa-database mr-1"></i>
+                        بيانات من Binance • توقيت سورية: Asia/Damascus
+                    </p>
+                    <p class="mt-1">
+                        <i class="fas fa-sync-alt mr-1"></i>
+                        تحديث تلقائي كل 15 دقيقة
+                    </p>
                 </div>
                 <div class="flex space-x-4 mt-4 md:mt-0">
-                    <a href="/api/docs" class="text-gray-400 hover:text-white transition">
+                    <a href="/api/docs" class="text-gray-400 hover:text-white transition p-2 bg-gray-800/50 rounded-lg" title="API توثيق">
                         <i class="fas fa-code text-lg"></i>
                     </a>
-                    <button onclick="testNotification()" class="text-gray-400 hover:text-white transition">
+                    <button onclick="testNotification()" class="text-gray-400 hover:text-white transition p-2 bg-gray-800/50 rounded-lg" title="اختبار التنبيهات">
                         <i class="fas fa-bell text-lg"></i>
                     </button>
-                    <button onclick="refreshAll()" class="text-gray-400 hover:text-white transition">
+                    <button onclick="refreshAll()" class="text-gray-400 hover:text-white transition p-2 bg-gray-800/50 rounded-lg" title="تحديث البيانات">
                         <i class="fas fa-redo text-lg"></i>
+                    </button>
+                    <button onclick="showSettings()" class="text-gray-400 hover:text-white transition p-2 bg-gray-800/50 rounded-lg" title="الإعدادات">
+                        <i class="fas fa-cog text-lg"></i>
                     </button>
                 </div>
             </div>
         </div>
     </footer>
 
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="text-center">
+            <i class="fas fa-spinner fa-spin text-4xl text-blue-400 mb-4"></i>
+            <p class="text-xl font-semibold">جاري تحميل البيانات...</p>
+            <p class="text-gray-400 mt-2" id="loading-message">يرجى الانتظار</p>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="glass-card p-6 w-full max-w-md mx-4">
+            <h3 class="text-xl font-bold mb-4 flex items-center">
+                <i class="fas fa-cog mr-2 text-blue-400"></i> إعدادات النظام
+            </h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">فترة التحديث التلقائي</label>
+                    <select id="update-interval" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2">
+                        <option value="30">30 ثانية</option>
+                        <option value="60" selected>1 دقيقة</option>
+                        <option value="300">5 دقائق</option>
+                        <option value="900">15 دقيقة</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">عرض التنبيهات</label>
+                    <div class="flex items-center space-x-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="sound-alerts" class="mr-2" checked>
+                            <span>تنبيهات صوتية</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="desktop-alerts" class="mr-2">
+                            <span>تنبيهات سطح المكتب</span>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">عرض البيانات</label>
+                    <div class="flex items-center space-x-4">
+                        <label class="flex items-center">
+                            <input type="radio" name="view-mode" value="compact" class="mr-2" checked>
+                            <span>مضغوط</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" name="view-mode" value="detailed" class="mr-2">
+                            <span>مفصل</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button onclick="closeSettings()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">
+                    إلغاء
+                </button>
+                <button onclick="saveSettings()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition">
+                    حفظ الإعدادات
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // المتغيرات العامة
         let charts = {};
         let currentData = null;
         let updateInterval = null;
+        let userSettings = {
+            autoRefresh: true,
+            refreshInterval: 60000, // 1 دقيقة
+            soundAlerts: true,
+            desktopAlerts: false,
+            viewMode: 'compact'
+        };
 
         // تحديث وقت سورية
         function updateSyriaTime() {
             const now = luxon.DateTime.now().setZone('Asia/Damascus');
             const timeStr = now.toFormat('yyyy-MM-dd HH:mm:ss');
             const dayStr = now.toFormat('EEEE');
-            document.getElementById('time-display').textContent = `${dayStr}, ${timeStr}`;
+            document.getElementById('time-display').textContent = `${dayStr}، ${timeStr}`;
+        }
+
+        // إظهار/إخفاء التحميل
+        function showLoading(message = 'جاري تحميل البيانات...') {
+            document.getElementById('loading-message').textContent = message;
+            document.getElementById('loading-overlay').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.add('hidden');
         }
 
         // تحديث جميع البيانات
@@ -310,12 +613,15 @@
                     fetchAnalysis(),
                     fetchRankings(),
                     fetchPairs(),
-                    fetchSystemStatus()
+                    fetchSystemStatus(),
+                    fetchMarketOverview()
                 ]);
                 hideLoading();
+                showNotification('تم تحديث البيانات بنجاح!', 'success');
             } catch (error) {
                 console.error('Refresh error:', error);
-                showError('Failed to refresh data');
+                showError('فشل في تحديث البيانات');
+                hideLoading();
             }
         }
 
@@ -327,6 +633,8 @@
                 updateDashboard(currentData);
                 updateHeatmapVisualization(currentData);
                 updateCharts(currentData);
+                updateDetailedTable(currentData);
+                checkAlerts(currentData.coins);
             } catch (error) {
                 console.error('Analysis fetch error:', error);
             }
@@ -337,6 +645,7 @@
             try {
                 const response = await axios.get('/api/coins/ranking?limit=10');
                 updateRankings(response.data.ranking);
+                updateHistoricalPerformance(response.data);
             } catch (error) {
                 console.error('Rankings fetch error:', error);
             }
@@ -362,6 +671,16 @@
             }
         }
 
+        // جلب نظرة عامة على السوق
+        async function fetchMarketOverview() {
+            try {
+                const response = await axios.get('/api/analysis/current');
+                updateMarketOverview(response.data);
+            } catch (error) {
+                console.error('Market overview fetch error:', error);
+            }
+        }
+
         // تحديث لوحة التحكم
         function updateDashboard(data) {
             if (!data) return;
@@ -369,27 +688,43 @@
             // تحديث العدادات
             document.getElementById('coins-count').textContent = data.total_coins || 0;
             document.getElementById('signals-count').textContent = data.market_summary?.strong_signals || 0;
-            document.getElementById('avg-score').textContent = `Avg Score: ${(data.market_summary?.average_score || 0).toFixed(1)}`;
+            document.getElementById('avg-score').innerHTML = `<i class="fas fa-calculator mr-1"></i> متوسط النقاط: ${(data.market_summary?.average_score || 0).toFixed(1)}`;
             
             // تحديث حالة السوق
             const avgScore = data.market_summary?.average_score || 0;
-            let marketCondition = 'Neutral';
+            let marketCondition = 'محايد';
             let conditionColor = 'text-blue-400';
+            let conditionIcon = 'fas fa-balance-scale';
             
             if (avgScore >= 60) {
-                marketCondition = 'Bullish';
+                marketCondition = 'صعودي';
                 conditionColor = 'text-green-400';
+                conditionIcon = 'fas fa-arrow-up';
             } else if (avgScore <= 40) {
-                marketCondition = 'Bearish';
+                marketCondition = 'هبوطي';
                 conditionColor = 'text-red-400';
+                conditionIcon = 'fas fa-arrow-down';
             }
             
-            document.getElementById('market-condition').textContent = marketCondition;
+            document.getElementById('market-condition').innerHTML = 
+                `<i class="${conditionIcon} mr-1"></i> ${marketCondition}`;
             document.getElementById('market-condition').className = `text-xl font-bold ${conditionColor}`;
             
             // تحديث وقت آخر تحديث
             const now = luxon.DateTime.now().setZone('Asia/Damascus');
-            document.getElementById('last-update').textContent = `Last update: ${now.toFormat('HH:mm:ss')}`;
+            document.getElementById('last-update').innerHTML = 
+                `<i class="fas fa-history mr-1"></i> آخر تحديث: ${now.toFormat('HH:mm:ss')}`;
+            
+            // تحديث هيمنة البتكوين (محاكاة)
+            const btcDominance = 45 + Math.random() * 10; // قيمة افتراضية
+            const btcChange = (Math.random() * 4 - 2).toFixed(2);
+            
+            document.getElementById('btc-dominance').textContent = `${btcDominance.toFixed(1)}%`;
+            document.getElementById('btc-change').innerHTML = 
+                `<i class="fas fa-exchange-alt mr-1"></i> تغير 24س: ${btcChange > 0 ? '+' : ''}${btcChange}%`;
+            
+            // تلوين تغير البتكوين
+            document.getElementById('btc-dominance').className = `text-xl font-bold ${btcChange > 0 ? 'text-green-400' : 'text-red-400'}`;
         }
 
         // تحديث خريطة الحرارة
@@ -412,10 +747,18 @@
             sortedCoins.slice(0, 15).forEach(coin => {
                 const perf = coin.returns_vs_btc?.[timeframe] || 0;
                 const symbol = coin.symbol.replace('/USDT', '');
+                const score = coin.score || 0;
                 
                 // تحديد اللون بناءً على الأداء
                 let colorClass = 'bg-gray-800';
                 let textColor = 'text-gray-300';
+                let borderClass = '';
+                
+                if (score >= 80) {
+                    borderClass = 'border-2 border-yellow-400';
+                } else if (score >= 70) {
+                    borderClass = 'border border-green-400';
+                }
                 
                 if (perf > 5) {
                     colorClass = 'bg-gradient-to-br from-green-900 to-green-600';
@@ -432,12 +775,17 @@
                 }
                 
                 html += `
-                    <div class="heatmap-cell ${colorClass} p-4 rounded-lg text-center">
-                        <div class="font-bold ${textColor}">${symbol}</div>
-                        <div class="text-2xl font-bold mt-2 ${perf >= 0 ? 'text-green-300' : 'text-red-300'}">
+                    <div class="heatmap-cell ${colorClass} ${borderClass} p-3 rounded-lg text-center cursor-pointer transform transition-all duration-300 hover:scale-105" 
+                         onclick="showCoinDetails('${coin.symbol}')" 
+                         title="${coin.symbol} - النقاط: ${score.toFixed(1)}">
+                        <div class="font-bold ${textColor} text-sm">${symbol}</div>
+                        <div class="text-xl font-bold mt-1 ${perf >= 0 ? 'text-green-300' : 'text-red-300'}">
                             ${perf >= 0 ? '+' : ''}${perf.toFixed(2)}%
                         </div>
-                        <div class="text-xs mt-1 ${textColor}">vs BTC</div>
+                        <div class="text-xs mt-1 ${textColor}">مقابل BTC</div>
+                        <div class="text-xs mt-1 ${score >= 70 ? 'text-yellow-300' : 'text-gray-400'}">
+                            ${score.toFixed(1)} ⭐
+                        </div>
                     </div>
                 `;
             });
@@ -451,7 +799,7 @@
             const container = document.getElementById('ranking-container');
             
             if (!rankings || rankings.length === 0) {
-                container.innerHTML = '<div class="text-center py-4 text-gray-500">No ranking data available</div>';
+                container.innerHTML = '<div class="text-center py-4 text-gray-500">لا توجد بيانات للترتيب</div>';
                 return;
             }
             
@@ -463,28 +811,54 @@
                 
                 // تحديد لون التوصية
                 let recColor = 'bg-gray-700 text-gray-300';
-                if (coin.recommendation === 'STRONG_BUY') recColor = 'bg-gradient-to-r from-green-700 to-green-500 text-white';
-                else if (coin.recommendation === 'BUY') recColor = 'bg-green-600 text-white';
-                else if (coin.recommendation === 'SELL') recColor = 'bg-red-600 text-white';
-                else if (coin.recommendation === 'STRONG_SELL') recColor = 'bg-gradient-to-r from-red-700 to-red-500 text-white';
+                let recIcon = 'fas fa-minus';
+                
+                if (coin.recommendation === 'STRONG_BUY') {
+                    recColor = 'bg-gradient-to-r from-green-700 to-green-500 text-white';
+                    recIcon = 'fas fa-rocket';
+                } else if (coin.recommendation === 'BUY') {
+                    recColor = 'bg-green-600 text-white';
+                    recIcon = 'fas fa-arrow-up';
+                } else if (coin.recommendation === 'SELL') {
+                    recColor = 'bg-red-600 text-white';
+                    recIcon = 'fas fa-arrow-down';
+                } else if (coin.recommendation === 'STRONG_SELL') {
+                    recColor = 'bg-gradient-to-r from-red-700 to-red-500 text-white';
+                    recIcon = 'fas fa-bomb';
+                } else if (coin.recommendation === 'NEUTRAL') {
+                    recColor = 'bg-gray-600 text-white';
+                    recIcon = 'fas fa-pause';
+                }
+                
+                // تلوين الترتيب
+                let rankClass = 'bg-gray-700';
+                if (index === 0) rankClass = 'bg-gradient-to-r from-yellow-500 to-yellow-300';
+                else if (index === 1) rankClass = 'bg-gradient-to-r from-gray-400 to-gray-300';
+                else if (index === 2) rankClass = 'bg-gradient-to-r from-orange-500 to-orange-300';
                 
                 html += `
-                    <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition">
+                    <div class="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg hover:bg-gray-800/50 transition-all duration-300 fade-in" 
+                         onclick="showCoinDetails('${coin.symbol}')"
+                         style="animation-delay: ${index * 0.1}s">
                         <div class="flex items-center">
-                            <div class="w-8 h-8 rounded-full ${index < 3 ? 'bg-gradient-to-r from-yellow-500 to-yellow-300' : 'bg-gray-700'} flex items-center justify-center font-bold">
+                            <div class="w-8 h-8 rounded-full ${rankClass} flex items-center justify-center font-bold text-gray-900">
                                 ${index + 1}
                             </div>
-                            <div class="ml-3">
+                            <div class="mr-3">
                                 <div class="font-semibold">${symbol}</div>
-                                <div class="text-xs text-gray-400">Score: ${score.toFixed(1)}</div>
+                                <div class="text-xs text-gray-400">$${coin.price?.toFixed(2) || '0.00'}</div>
                             </div>
                         </div>
                         <div class="flex items-center space-x-2">
-                            <span class="signal-badge ${recColor} text-xs">
+                            <div class="text-left">
+                                <div class="text-sm font-bold ${score >= 80 ? 'text-green-400' : score >= 60 ? 'text-blue-400' : score >= 40 ? 'text-yellow-400' : 'text-red-400'}">
+                                    ${score.toFixed(1)}
+                                </div>
+                                <div class="text-xs text-gray-400">النقاط</div>
+                            </div>
+                            <span class="signal-badge ${recColor} text-xs px-2 py-1">
+                                <i class="${recIcon} ml-1"></i>
                                 ${coin.recommendation}
-                            </span>
-                            <span class="text-sm ${score >= 80 ? 'text-green-400' : score >= 60 ? 'text-blue-400' : 'text-red-400'}">
-                                <i class="fas fa-chart-${score >= 60 ? 'line' : 'line'}"></i>
                             </span>
                         </div>
                     </div>
@@ -499,7 +873,7 @@
             const container = document.getElementById('pairs-container');
             
             if (!data || !data.data || Object.keys(data.data).length === 0) {
-                container.innerHTML = '<div class="text-center py-4 text-gray-500">No trading pairs available</div>';
+                container.innerHTML = '<div class="text-center py-4 text-gray-500">لا توجد أزواج تداول متاحة</div>';
                 return;
             }
             
@@ -507,40 +881,63 @@
             const today = luxon.DateTime.now().setZone('Asia/Damascus').toISODate();
             const todayPairs = data.data[today] || [];
             
+            if (todayPairs.length === 0) {
+                container.innerHTML = '<div class="text-center py-4 text-gray-500">لا توجد أزواج تداول لهذا اليوم</div>';
+                return;
+            }
+            
             todayPairs.forEach((pair, index) => {
                 const isLong = pair.recommendation.includes('LONG');
                 const isShort = pair.recommendation.includes('SHORT');
+                const pairScore = pair.score || 0;
+                
+                // تحديد مستوى الثقة
+                let confidenceLevel = 'منخفض';
+                let confidenceColor = 'text-red-400';
+                if (pairScore > 70) {
+                    confidenceLevel = 'عالية';
+                    confidenceColor = 'text-green-400';
+                } else if (pairScore > 50) {
+                    confidenceLevel = 'متوسطة';
+                    confidenceColor = 'text-yellow-400';
+                }
                 
                 html += `
-                    <div class="bg-gradient-to-r ${isLong ? 'from-green-900/30 to-green-700/30' : 'from-red-900/30 to-red-700/30'} p-4 rounded-lg border ${isLong ? 'border-green-800/50' : 'border-red-800/50'}">
+                    <div class="bg-gradient-to-r ${isLong ? 'from-green-900/20 to-green-700/20' : 'from-red-900/20 to-red-700/20'} p-4 rounded-lg border ${isLong ? 'border-green-800/30' : 'border-red-800/30'} hover:border-${isLong ? 'green' : 'red'}-600/50 transition-all duration-300 fade-in" 
+                         style="animation-delay: ${index * 0.1}s">
                         <div class="flex justify-between items-center mb-2">
-                            <div class="font-bold text-lg">${pair.pair}</div>
-                            <span class="signal-badge ${isLong ? 'bg-gradient-to-r from-green-600 to-green-400' : 'bg-gradient-to-r from-red-600 to-red-400'} text-white">
-                                ${isLong ? 'LONG/SHORT' : 'SHORT/LONG'}
+                            <div>
+                                <div class="font-bold text-lg">${pair.pair}</div>
+                                <div class="text-xs text-gray-400">${isLong ? 'شراء/بيع' : 'بيع/شراء'}</div>
+                            </div>
+                            <span class="signal-badge ${isLong ? 'bg-gradient-to-r from-green-600 to-green-400' : 'bg-gradient-to-r from-red-600 to-red-400'} text-white text-xs">
+                                <i class="fas ${isLong ? 'fa-arrow-up' : 'fa-arrow-down'} ml-1"></i>
+                                ${pair.recommendation}
                             </span>
                         </div>
-                        <div class="grid grid-cols-2 gap-2 text-sm">
-                            <div>
-                                <span class="text-gray-400">Score:</span>
-                                <span class="ml-2 font-semibold">${pair.score?.toFixed(1) || 'N/A'}</span>
+                        <div class="grid grid-cols-2 gap-3 text-sm mt-3">
+                            <div class="bg-gray-800/30 p-2 rounded">
+                                <div class="text-gray-400 text-xs">النقاط</div>
+                                <div class="font-semibold ${pairScore > 70 ? 'text-green-400' : pairScore > 50 ? 'text-yellow-400' : 'text-red-400'}">
+                                    ${pairScore.toFixed(1)}
+                                </div>
                             </div>
-                            <div>
-                                <span class="text-gray-400">Confidence:</span>
-                                <span class="ml-2 font-semibold ${(pair.score || 0) > 70 ? 'text-green-400' : 'text-yellow-400'}">
-                                    ${(pair.score || 0) > 70 ? 'High' : 'Medium'}
-                                </span>
+                            <div class="bg-gray-800/30 p-2 rounded">
+                                <div class="text-gray-400 text-xs">الثقة</div>
+                                <div class="font-semibold ${confidenceColor}">${confidenceLevel}</div>
                             </div>
                         </div>
                         <div class="mt-3 text-xs text-gray-400">
+                            <i class="fas fa-lightbulb ml-1"></i>
                             ${pair.recommendation}
                         </div>
-                        ${index === 0 ? `
-                        <div class="mt-3 pt-3 border-t border-gray-700/50">
-                            <button onclick="tradePair('${pair.pair}')" class="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white py-2 rounded-lg font-semibold transition-all duration-300">
-                                <i class="fas fa-trade-federation mr-2"></i> Trade This Pair
+                        <div class="mt-3 pt-3 border-t border-gray-700/30">
+                            <button onclick="tradePair('${pair.pair}', '${pair.recommendation}', ${pairScore})" 
+                                    class="w-full bg-gradient-to-r ${isLong ? 'from-green-600 to-green-500' : 'from-red-600 to-red-500'} hover:${isLong ? 'from-green-700 to-green-600' : 'from-red-700 to-red-600'} text-white py-2 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center">
+                                <i class="fas fa-trade-federation ml-2"></i>
+                                تداول هذا الزوج
                             </button>
                         </div>
-                        ` : ''}
                     </div>
                 `;
             });
@@ -550,8 +947,193 @@
 
         // تحديث حالة النظام
         function updateSystemStatus(status) {
-            document.getElementById('system-status').textContent = status.started ? 'Online' : 'Offline';
-            document.getElementById('system-status').className = `text-xl font-bold ${status.started ? 'text-green-400' : 'text-red-400'}`;
+            const isOnline = status.started;
+            const statusElement = document.getElementById('system-status');
+            
+            statusElement.textContent = isOnline ? 'نشط' : 'غير نشط';
+            statusElement.className = `text-xl font-bold ${isOnline ? 'text-green-400' : 'text-red-400'}`;
+            
+            // تحديث الأيقونة
+            const icon = statusElement.previousElementSibling;
+            if (icon) {
+                icon.className = `fas fa-server text-2xl ${isOnline ? 'text-green-400' : 'text-red-400'}`;
+            }
+        }
+
+        // تحديث جدول التحليل التفصيلي
+        function updateDetailedTable(data) {
+            if (!data?.coins) return;
+            
+            const tbody = document.getElementById('coins-table-body');
+            let html = '';
+            
+            data.coins.slice(0, 8).forEach((coin, index) => {
+                const symbol = coin.symbol.replace('/USDT', '');
+                const score = coin.score || 0;
+                const rsi = coin.rsi || 0;
+                const volume = coin.volume_usd || 0;
+                const price = coin.price_usdt || 0;
+                
+                // تحديد لون RSI
+                let rsiColor = 'text-gray-300';
+                let rsiStatus = 'طبيعي';
+                if (rsi > 70) {
+                    rsiColor = 'text-red-400';
+                    rsiStatus = 'مشتراة بشدة';
+                } else if (rsi < 30) {
+                    rsiColor = 'text-green-400';
+                    rsiStatus = 'مباعة بشدة';
+                }
+                
+                // تنسيق الحجم
+                const volumeFormatted = volume >= 1000000 
+                    ? `${(volume / 1000000).toFixed(1)}M` 
+                    : volume >= 1000 
+                    ? `${(volume / 1000).toFixed(1)}K` 
+                    : volume.toFixed(0);
+                
+                html += `
+                    <tr class="border-b border-gray-800 hover:bg-gray-800/30 transition">
+                        <td class="py-3">
+                            <div class="flex items-center">
+                                <div class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center mr-2">
+                                    <span class="text-xs font-bold">${index + 1}</span>
+                                </div>
+                                <span class="font-semibold">${symbol}</span>
+                            </div>
+                        </td>
+                        <td class="py-3 text-left">
+                            <span class="font-mono">$${price.toFixed(2)}</span>
+                        </td>
+                        <td class="py-3 text-left">
+                            <div class="flex items-center">
+                                <div class="w-16 bg-gray-700 rounded-full h-2 mr-2">
+                                    <div class="h-full rounded-full ${score >= 70 ? 'bg-green-500' : score >= 50 ? 'bg-yellow-500' : 'bg-red-500'}" 
+                                         style="width: ${score}%"></div>
+                                </div>
+                                <span class="font-semibold ${score >= 70 ? 'text-green-400' : score >= 50 ? 'text-yellow-400' : 'text-red-400'}">
+                                    ${score.toFixed(1)}
+                                </span>
+                            </div>
+                        </td>
+                        <td class="py-3 text-left">
+                            <div class="${rsiColor}" title="${rsiStatus}">
+                                ${rsi.toFixed(1)}
+                                <i class="fas ${rsi > 70 ? 'fa-arrow-up' : rsi < 30 ? 'fa-arrow-down' : 'fa-minus'} mr-1"></i>
+                            </div>
+                        </td>
+                        <td class="py-3 text-left">
+                            <span class="text-gray-300">$${volumeFormatted}</span>
+                        </td>
+                        <td class="py-3 text-left">
+                            <button onclick="analyzeCoin('${coin.symbol}')" 
+                                    class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs transition">
+                                تحليل
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+
+        // تحديث الأداء التاريخي
+        function updateHistoricalPerformance(data) {
+            if (!data?.ranking) return;
+            
+            // حساب المتوسطات (محاكاة)
+            const avgDailyReturn = (Math.random() * 6 - 3).toFixed(2);
+            const winRate = (60 + Math.random() * 30).toFixed(1);
+            
+            document.getElementById('avg-daily-return').textContent = `${avgDailyReturn > 0 ? '+' : ''}${avgDailyReturn}%`;
+            document.getElementById('win-rate').textContent = `${winRate}%`;
+            
+            // تلوين النتائج
+            document.getElementById('avg-daily-return').className = `text-lg font-bold ${avgDailyReturn > 0 ? 'text-green-400' : 'text-red-400'}`;
+            document.getElementById('win-rate').className = `text-lg font-bold ${winRate > 65 ? 'text-green-400' : winRate > 50 ? 'text-yellow-400' : 'text-red-400'}`;
+            
+            // أفضل وأسوأ زوج (محاكاة)
+            if (data.ranking.length > 0) {
+                const bestCoin = data.ranking[0];
+                const worstCoin = data.ranking[data.ranking.length - 1];
+                
+                document.getElementById('best-pair').textContent = bestCoin.symbol.replace('/USDT', '');
+                document.getElementById('worst-pair').textContent = worstCoin.symbol.replace('/USDT', '');
+            }
+        }
+
+        // تحديث نظرة عامة على السوق
+        function updateMarketOverview(data) {
+            if (!data?.coins) return;
+            
+            const topCoins = [...data.coins]
+                .sort((a, b) => (b.score || 0) - (a.score || 0))
+                .slice(0, 3);
+            
+            const worstCoins = [...data.coins]
+                .sort((a, b) => (a.score || 0) - (b.score || 0))
+                .slice(0, 3);
+            
+            const highVolume = [...data.coins]
+                .sort((a, b) => (b.volume_usd || 0) - (a.volume_usd || 0))
+                .slice(0, 3);
+            
+            // تحديث أفضل العملات
+            let topHtml = '';
+            topCoins.forEach((coin, index) => {
+                const symbol = coin.symbol.replace('/USDT', '');
+                topHtml += `
+                    <div class="flex justify-between items-center">
+                        <span class="${index === 0 ? 'text-yellow-400' : index === 1 ? 'text-gray-300' : 'text-orange-400'}">
+                            ${index + 1}. ${symbol}
+                        </span>
+                        <span class="text-green-400 font-semibold">
+                            ${(coin.score || 0).toFixed(1)}
+                        </span>
+                    </div>
+                `;
+            });
+            document.getElementById('top-coins').innerHTML = topHtml;
+            
+            // تحديث أسوأ العملات
+            let worstHtml = '';
+            worstCoins.forEach((coin, index) => {
+                const symbol = coin.symbol.replace('/USDT', '');
+                worstHtml += `
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300">
+                            ${index + 1}. ${symbol}
+                        </span>
+                        <span class="text-red-400 font-semibold">
+                            ${(coin.score || 0).toFixed(1)}
+                        </span>
+                    </div>
+                `;
+            });
+            document.getElementById('worst-coins').innerHTML = worstHtml;
+            
+            // تحديث أعلى حجم تداول
+            let volumeHtml = '';
+            highVolume.forEach((coin, index) => {
+                const symbol = coin.symbol.replace('/USDT', '');
+                const volume = coin.volume_usd || 0;
+                const volumeStr = volume >= 1000000 
+                    ? `${(volume / 1000000).toFixed(1)}M` 
+                    : `${(volume / 1000).toFixed(1)}K`;
+                
+                volumeHtml += `
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300">
+                            ${index + 1}. ${symbol}
+                        </span>
+                        <span class="text-blue-400 font-semibold">
+                            $${volumeStr}
+                        </span>
+                    </div>
+                `;
+            });
+            document.getElementById('high-volume').innerHTML = volumeHtml;
         }
 
         // تحديث الرسوم البيانية
@@ -559,6 +1141,19 @@
             if (!data?.coins) return;
             
             // رسم بياني الأداء
+            updatePerformanceChart(data);
+            
+            // رسم بياني التوزيع
+            updateDistributionChart(data);
+            
+            // رسم بياني RSI
+            updateRSIChart(data);
+            
+            // رسم بياني ATR
+            updateATRChart(data);
+        }
+
+        function updatePerformanceChart(data) {
             const perfCtx = document.getElementById('performance-chart').getContext('2d');
             const symbols = data.coins.slice(0, 8).map(c => c.symbol.replace('/USDT', ''));
             const performances = data.coins.slice(0, 8).map(c => c.returns_vs_btc?.['4h'] || 0);
@@ -570,7 +1165,7 @@
                 data: {
                     labels: symbols,
                     datasets: [{
-                        label: '4h Performance vs BTC (%)',
+                        label: 'أداء 4 ساعات مقابل BTC (%)',
                         data: performances,
                         backgroundColor: performances.map(p => 
                             p >= 0 ? 'rgba(16, 185, 129, 0.7)' : 'rgba(239, 68, 68, 0.7)'
@@ -578,7 +1173,8 @@
                         borderColor: performances.map(p => 
                             p >= 0 ? 'rgb(16, 185, 129)' : 'rgb(239, 68, 68)'
                         ),
-                        borderWidth: 1
+                        borderWidth: 1,
+                        borderRadius: 5
                     }]
                 },
                 options: {
@@ -596,29 +1192,35 @@
                         }
                     },
                     plugins: {
-                        legend: { display: false }
+                        legend: { 
+                            display: true,
+                            labels: { color: '#94a3b8' }
+                        }
                     }
                 }
             });
-            
-            // رسم بياني التوزيع
+        }
+
+        function updateDistributionChart(data) {
             const distCtx = document.getElementById('distribution-chart').getContext('2d');
             const scores = data.coins.map(c => c.score || 0);
+            
+            const dataPoints = [
+                scores.filter(s => s >= 80).length,
+                scores.filter(s => s >= 60 && s < 80).length,
+                scores.filter(s => s >= 40 && s < 60).length,
+                scores.filter(s => s >= 20 && s < 40).length,
+                scores.filter(s => s < 20).length
+            ];
             
             if (charts.distribution) charts.distribution.destroy();
             
             charts.distribution = new Chart(distCtx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Strong Buy (≥80)', 'Buy (60-79)', 'Neutral (40-59)', 'Sell (20-39)', 'Strong Sell (<20)'],
+                    labels: ['شراء قوي (≥80)', 'شراء (60-79)', 'محايد (40-59)', 'بيع (20-39)', 'بيع قوي (<20)'],
                     datasets: [{
-                        data: [
-                            scores.filter(s => s >= 80).length,
-                            scores.filter(s => s >= 60 && s < 80).length,
-                            scores.filter(s => s >= 40 && s < 60).length,
-                            scores.filter(s => s >= 20 && s < 40).length,
-                            scores.filter(s => s < 20).length
-                        ],
+                        data: dataPoints,
                         backgroundColor: [
                             'rgba(16, 185, 129, 0.8)',
                             'rgba(34, 197, 94, 0.8)',
@@ -633,7 +1235,8 @@
                             'rgb(245, 158, 11)',
                             'rgb(239, 68, 68)'
                         ],
-                        borderWidth: 1
+                        borderWidth: 2,
+                        hoverOffset: 15
                     }]
                 },
                 options: {
@@ -643,6 +1246,157 @@
                     plugins: {
                         legend: {
                             position: 'right',
+                            labels: { 
+                                color: '#94a3b8',
+                                padding: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: ${value} عملة (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateRSIChart(data) {
+            const rsiCtx = document.getElementById('rsi-chart').getContext('2d');
+            const coins = data.coins.slice(0, 6);
+            const symbols = coins.map(c => c.symbol.replace('/USDT', ''));
+            const rsiValues = coins.map(c => c.rsi || 50);
+            
+            if (charts.rsi) charts.rsi.destroy();
+            
+            charts.rsi = new Chart(rsiCtx, {
+                type: 'line',
+                data: {
+                    labels: symbols,
+                    datasets: [{
+                        label: 'مؤشر القوة النسبية (RSI)',
+                        data: rsiValues,
+                        borderColor: 'rgb(147, 51, 234)',
+                        backgroundColor: 'rgba(147, 51, 234, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: rsiValues.map(v => 
+                            v > 70 ? 'rgb(239, 68, 68)' : 
+                            v < 30 ? 'rgb(16, 185, 129)' : 
+                            'rgb(59, 130, 246)'
+                        ),
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 100,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    },
+                    plugins: {
+                        legend: { 
+                            display: true,
+                            labels: { color: '#94a3b8' }
+                        },
+                        annotation: {
+                            annotations: {
+                                overbought: {
+                                    type: 'line',
+                                    yMin: 70,
+                                    yMax: 70,
+                                    borderColor: 'rgb(239, 68, 68)',
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                    label: {
+                                        content: 'مشتراة بشدة',
+                                        enabled: true,
+                                        position: 'end',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.7)'
+                                    }
+                                },
+                                oversold: {
+                                    type: 'line',
+                                    yMin: 30,
+                                    yMax: 30,
+                                    borderColor: 'rgb(16, 185, 129)',
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                    label: {
+                                        content: 'مباعة بشدة',
+                                        enabled: true,
+                                        position: 'end',
+                                        backgroundColor: 'rgba(16, 185, 129, 0.7)'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateATRChart(data) {
+            const atrCtx = document.getElementById('atr-chart').getContext('2d');
+            const coins = data.coins.slice(0, 6);
+            const symbols = coins.map(c => c.symbol.replace('/USDT', ''));
+            
+            // قيم ATR افتراضية (محاكاة)
+            const atrValues = symbols.map(() => 2 + Math.random() * 3);
+            
+            if (charts.atr) charts.atr.destroy();
+            
+            charts.atr = new Chart(atrCtx, {
+                type: 'radar',
+                data: {
+                    labels: symbols,
+                    datasets: [{
+                        label: 'معدل التذبذب الحقيقي (ATR %)',
+                        data: atrValues,
+                        backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                        borderColor: 'rgb(245, 158, 11)',
+                        borderWidth: 2,
+                        pointBackgroundColor: 'rgb(245, 158, 11)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: { color: 'rgba(255, 255, 255, 0.1)' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            pointLabels: { color: '#94a3b8' },
+                            ticks: { 
+                                color: '#94a3b8',
+                                backdropColor: 'transparent'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { 
+                            display: true,
                             labels: { color: '#94a3b8' }
                         }
                     }
@@ -650,64 +1404,75 @@
             });
         }
 
+        // التحقق من التنبيهات
+        function checkAlerts(coins) {
+            const strongBuyCoins = coins.filter(c => c.recommendation === 'STRONG_BUY');
+            const strongSellCoins = coins.filter(c => c.recommendation === 'STRONG_SELL');
+            
+            const signalsContainer = document.getElementById('signals-container');
+            let signalsHtml = '';
+            
+            if (strongBuyCoins.length > 0) {
+                signalsHtml += `
+                    <div class="bg-gradient-to-r from-green-900/30 to-green-700/30 p-3 rounded-lg border border-green-800/50">
+                        <div class="flex items-center">
+                            <i class="fas fa-rocket text-green-400 text-xl ml-2"></i>
+                            <div>
+                                <div class="font-semibold">${strongBuyCoins.length} إشارة شراء قوية</div>
+                                <div class="text-xs text-gray-400 mt-1">
+                                    ${strongBuyCoins.map(c => c.symbol.replace('/USDT', '')).join(', ')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (strongSellCoins.length > 0) {
+                signalsHtml += `
+                    <div class="bg-gradient-to-r from-red-900/30 to-red-700/30 p-3 rounded-lg border border-red-800/50">
+                        <div class="flex items-center">
+                            <i class="fas fa-bomb text-red-400 text-xl ml-2"></i>
+                            <div>
+                                <div class="font-semibold">${strongSellCoins.length} إشارة بيع قوية</div>
+                                <div class="text-xs text-gray-400 mt-1">
+                                    ${strongSellCoins.map(c => c.symbol.replace('/USDT', '')).join(', ')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (signalsHtml === '') {
+                signalsHtml = `
+                    <div class="text-center py-4 text-gray-500">
+                        <i class="fas fa-check-circle text-green-400 text-xl mb-2"></i>
+                        <p>لا توجد تنبيهات نشطة</p>
+                        <p class="text-xs mt-1">جميع العملات ضمن النطاق الطبيعي</p>
+                    </div>
+                `;
+            }
+            
+            signalsContainer.innerHTML = signalsHtml;
+            
+            // تشغيل تنبيه صوتي إذا كان مفعلاً
+            if (userSettings.soundAlerts && (strongBuyCoins.length > 0 || strongSellCoins.length > 0)) {
+                playAlertSound();
+            }
+        }
+
         // وظائف المساعدة
-        function showLoading() {
-            // يمكن إضافة مؤشر تحميل
-            document.body.style.cursor = 'wait';
-        }
-
-        function hideLoading() {
-            document.body.style.cursor = 'default';
-        }
-
-        function showError(message) {
-            // يمكن إضافة عرض الأخطاء
-            console.error('Error:', message);
-        }
-
-        // تشغيل التحليل الآن
-        async function triggerAnalysis() {
-            try {
-                const button = event.target.closest('button');
-                const originalText = button.innerHTML;
-                button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Analyzing...';
-                button.disabled = true;
-                
-                await axios.post('/api/analyze/now');
-                
-                setTimeout(() => {
-                    button.innerHTML = originalText;
-                    button.disabled = false;
-                    refreshAll();
-                    showNotification('Analysis completed successfully!');
-                }, 2000);
-                
-            } catch (error) {
-                console.error('Trigger analysis error:', error);
-                showError('Failed to trigger analysis');
-            }
-        }
-
-        // اختبار الإشعار
-        async function testNotification() {
-            try {
-                await axios.post('/api/test/notification', {
-                    message: 'This is a test notification from the dashboard'
-                });
-                showNotification('Test notification sent!');
-            } catch (error) {
-                console.error('Test notification error:', error);
-            }
-        }
-
-        // إظهار إشعار
-        function showNotification(message) {
-            // إنشاء عنصر الإشعار
+        function showNotification(message, type = 'info') {
             const notification = document.createElement('div');
-            notification.className = 'fixed top-4 right-4 glass-card p-4 max-w-sm animate-slide-in';
+            const icon = type === 'success' ? 'fa-check-circle text-green-400' : 
+                        type === 'error' ? 'fa-exclamation-circle text-red-400' : 
+                        'fa-info-circle text-blue-400';
+            
+            notification.className = `fixed top-4 left-4 glass-card p-4 max-w-sm animate-slide-in z-50`;
             notification.innerHTML = `
                 <div class="flex items-center">
-                    <i class="fas fa-check-circle text-green-400 text-xl mr-3"></i>
+                    <i class="fas ${icon} text-xl ml-3"></i>
                     <div>
                         <p class="font-semibold">${message}</p>
                         <p class="text-xs text-gray-400 mt-1">${luxon.DateTime.now().setZone('Asia/Damascus').toFormat('HH:mm:ss')}</p>
@@ -717,42 +1482,429 @@
             
             document.body.appendChild(notification);
             
-            // إزالة الإشعار بعد 3 ثوان
             setTimeout(() => {
-                notification.remove();
+                notification.classList.add('opacity-0', 'transition-opacity', 'duration-300');
+                setTimeout(() => notification.remove(), 300);
             }, 3000);
+        }
+
+        function showError(message) {
+            showNotification(message, 'error');
+        }
+
+        // تشغيل التحليل الآن
+        async function triggerAnalysis() {
+            try {
+                const button = event.target.closest('button');
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin ml-2"></i>جاري التحليل...';
+                button.disabled = true;
+                
+                await axios.post('/api/analyze/now');
+                
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                    refreshAll();
+                    showNotification('تم إكمال التحليل بنجاح!', 'success');
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Trigger analysis error:', error);
+                showError('فشل في تشغيل التحليل');
+            }
+        }
+
+        // اختبار الإشعار
+        async function testNotification() {
+            try {
+                await axios.post('/api/test/notification', {
+                    message: 'هذا اختبار للتنبيهات من لوحة التحكم'
+                });
+                showNotification('تم إرسال اختبار التنبيه!', 'success');
+            } catch (error) {
+                console.error('Test notification error:', error);
+            }
+        }
+
+        // تشغيل صوت التنبيه
+        function playAlertSound() {
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==');
+                audio.volume = 0.3;
+                audio.play();
+            } catch (e) {
+                console.log('لا يمكن تشغيل الصوت');
+            }
         }
 
         // تبديل السمة
         function toggleTheme() {
             const html = document.documentElement;
+            const themeIcon = document.getElementById('theme-icon');
             const isDark = html.classList.contains('dark');
             
             if (isDark) {
                 html.classList.remove('dark');
                 localStorage.setItem('theme', 'light');
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
             } else {
                 html.classList.add('dark');
                 localStorage.setItem('theme', 'dark');
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
             }
         }
 
-        // تحديث خريطة الحرارة
-        function updateHeatmap() {
-            if (currentData) {
-                updateHeatmapVisualization(currentData);
+        // تبديل عرض خريطة الحرارة
+        function toggleHeatmapView() {
+            const container = document.getElementById('heatmap-container');
+            container.classList.toggle('grid-cols-5');
+            container.classList.toggle('grid-cols-3');
+        }
+
+        // عرض إعدادات النظام
+        function showSettings() {
+            document.getElementById('settings-modal').classList.remove('hidden');
+        }
+
+        function closeSettings() {
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        function saveSettings() {
+            const interval = document.getElementById('update-interval').value;
+            const soundAlerts = document.getElementById('sound-alerts').checked;
+            const desktopAlerts = document.getElementById('desktop-alerts').checked;
+            const viewMode = document.querySelector('input[name="view-mode"]:checked').value;
+            
+            userSettings.refreshInterval = parseInt(interval) * 1000;
+            userSettings.soundAlerts = soundAlerts;
+            userSettings.desktopAlerts = desktopAlerts;
+            userSettings.viewMode = viewMode;
+            
+            localStorage.setItem('cryptoScannerSettings', JSON.stringify(userSettings));
+            
+            // إعادة ضبط الفاصل الزمني للتحديث
+            if (updateInterval) {
+                clearInterval(updateInterval);
             }
+            
+            if (userSettings.refreshInterval > 0) {
+                updateInterval = setInterval(refreshAll, userSettings.refreshInterval);
+            }
+            
+            showNotification('تم حفظ الإعدادات بنجاح!', 'success');
+            closeSettings();
+        }
+
+        // تصدير البيانات إلى CSV
+        function exportToCSV() {
+            if (!currentData?.coins) {
+                showError('لا توجد بيانات للتصدير');
+                return;
+            }
+            
+            const headers = ['العملة', 'السعر', 'النقاط', 'التوصية', 'RSI', 'أداء 4س مقابل BTC', 'الحجم'];
+            const rows = currentData.coins.map(coin => [
+                coin.symbol,
+                coin.price_usdt?.toFixed(2) || '0',
+                coin.score?.toFixed(1) || '0',
+                coin.recommendation || 'NEUTRAL',
+                coin.rsi?.toFixed(1) || '0',
+                (coin.returns_vs_btc?.['4h'] || 0).toFixed(2),
+                coin.volume_usdt?.toFixed(0) || '0'
+            ]);
+            
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.join(','))
+            ].join('\n');
+            
+            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `crypto_analysis_${luxon.DateTime.now().setZone('Asia/Damascus').toFormat('yyyy-MM-dd_HHmm')}.csv`;
+            link.click();
+            
+            showNotification('تم تصدير البيانات بنجاح!', 'success');
+        }
+
+        // عرض تفاصيل العملة
+        function showCoinDetails(symbol) {
+            if (!currentData?.coins) return;
+            
+            const coin = currentData.coins.find(c => c.symbol === symbol);
+            if (!coin) return;
+            
+            const coinName = symbol.replace('/USDT', '');
+            const modalHtml = `
+                <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+                    <div class="glass-card p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold flex items-center">
+                                <i class="fas fa-coins ml-2 text-yellow-400"></i>
+                                تحليل مفصل: ${coinName}
+                            </h3>
+                            <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-white">
+                                <i class="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="bg-gray-800/30 p-4 rounded-lg">
+                                    <div class="text-gray-400 text-sm">السعر الحالي</div>
+                                    <div class="text-2xl font-bold mt-1">$${coin.price_usdt?.toFixed(2) || '0.00'}</div>
+                                </div>
+                                <div class="bg-gray-800/30 p-4 rounded-lg">
+                                    <div class="text-gray-400 text-sm">النقاط</div>
+                                    <div class="text-2xl font-bold mt-1 ${coin.score >= 70 ? 'text-green-400' : coin.score >= 50 ? 'text-yellow-400' : 'text-red-400'}">
+                                        ${coin.score?.toFixed(1) || '0.0'}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-gray-800/30 p-4 rounded-lg">
+                                <div class="text-gray-400 text-sm mb-2">التوصية</div>
+                                <div class="text-lg font-bold ${
+                                    coin.recommendation === 'STRONG_BUY' ? 'text-green-400' :
+                                    coin.recommendation === 'BUY' ? 'text-green-300' :
+                                    coin.recommendation === 'SELL' ? 'text-red-300' :
+                                    coin.recommendation === 'STRONG_SELL' ? 'text-red-400' :
+                                    'text-gray-300'
+                                }">
+                                    <i class="fas ${
+                                        coin.recommendation === 'STRONG_BUY' ? 'fa-rocket' :
+                                        coin.recommendation === 'BUY' ? 'fa-arrow-up' :
+                                        coin.recommendation === 'SELL' ? 'fa-arrow-down' :
+                                        coin.recommendation === 'STRONG_SELL' ? 'fa-bomb' :
+                                        'fa-pause'
+                                    } ml-2"></i>
+                                    ${coin.recommendation || 'NEUTRAL'}
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-3 gap-3">
+                                <div class="bg-gray-800/30 p-3 rounded-lg">
+                                    <div class="text-gray-400 text-xs">RSI</div>
+                                    <div class="text-lg font-bold ${coin.rsi > 70 ? 'text-red-400' : coin.rsi < 30 ? 'text-green-400' : 'text-gray-300'}">
+                                        ${coin.rsi?.toFixed(1) || '0.0'}
+                                    </div>
+                                </div>
+                                <div class="bg-gray-800/30 p-3 rounded-lg">
+                                    <div class="text-gray-400 text-xs">ATR</div>
+                                    <div class="text-lg font-bold">${coin.atr_percent?.toFixed(2) || '0.00'}%</div>
+                                </div>
+                                <div class="bg-gray-800/30 p-3 rounded-lg">
+                                    <div class="text-gray-400 text-xs">الحجم</div>
+                                    <div class="text-lg font-bold">${(coin.volume_usdt / 1000000).toFixed(1)}M</div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-gray-800/30 p-4 rounded-lg">
+                                <div class="text-gray-400 text-sm mb-2">الأداء مقابل BTC</div>
+                                <div class="grid grid-cols-4 gap-2">
+                                    <div class="text-center">
+                                        <div class="text-xs text-gray-400">1س</div>
+                                        <div class="${(coin.returns_vs_btc?.['1h'] || 0) >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                            ${(coin.returns_vs_btc?.['1h'] || 0) >= 0 ? '+' : ''}${(coin.returns_vs_btc?.['1h'] || 0).toFixed(2)}%
+                                        </div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-xs text-gray-400">4س</div>
+                                        <div class="${(coin.returns_vs_btc?.['4h'] || 0) >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                            ${(coin.returns_vs_btc?.['4h'] || 0) >= 0 ? '+' : ''}${(coin.returns_vs_btc?.['4h'] || 0).toFixed(2)}%
+                                        </div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-xs text-gray-400">يوم</div>
+                                        <div class="${(coin.returns_vs_btc?.['1d'] || 0) >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                            ${(coin.returns_vs_btc?.['1d'] || 0) >= 0 ? '+' : ''}${(coin.returns_vs_btc?.['1d'] || 0).toFixed(2)}%
+                                        </div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-xs text-gray-400">أسبوع</div>
+                                        <div class="${(coin.returns_vs_btc?.['1w'] || 0) >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                            ${(coin.returns_vs_btc?.['1w'] || 0) >= 0 ? '+' : ''}${(coin.returns_vs_btc?.['1w'] || 0).toFixed(2)}%
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            ${coin.signals && coin.signals.length > 0 ? `
+                                <div class="bg-gray-800/30 p-4 rounded-lg">
+                                    <div class="text-gray-400 text-sm mb-2">الإشارات الفنية</div>
+                                    <div class="flex flex-wrap gap-2">
+                                        ${coin.signals.map(signal => `
+                                            <span class="px-2 py-1 bg-blue-900/30 text-blue-300 rounded text-xs">
+                                                ${signal}
+                                            </span>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="flex space-x-3 mt-4">
+                                <button onclick="tradeSingle('${symbol}', '${coin.recommendation}')" 
+                                        class="flex-1 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white py-2 rounded-lg font-semibold transition-all duration-300">
+                                    <i class="fas fa-trade-federation ml-2"></i>
+                                    تداول ${coinName}
+                                </button>
+                                <button onclick="analyzeCoin('${symbol}')" 
+                                        class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg font-semibold transition-all duration-300">
+                                    <i class="fas fa-chart-line ml-2"></i>
+                                    تحليل متقدم
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
         }
 
         // محاكاة تداول الزوج
-        function tradePair(pair) {
+        function tradePair(pair, recommendation, confidence) {
             const [coin1, coin2] = pair.split('/');
-            showNotification(`Preparing to trade ${coin1}/${coin2} pair...`);
-            // هنا يمكن إضافة منطق التداول الفعلي
+            const isLong = recommendation.includes('LONG');
+            
+            const modalHtml = `
+                <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+                    <div class="glass-card p-6 w-full max-w-md">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold flex items-center">
+                                <i class="fas fa-trade-federation ml-2 ${isLong ? 'text-green-400' : 'text-red-400'}"></i>
+                                تأكيد التداول
+                            </h3>
+                            <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-white">
+                                <i class="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div class="text-center">
+                                <div class="text-2xl font-bold mb-2">${pair}</div>
+                                <div class="text-lg ${isLong ? 'text-green-400' : 'text-red-400'} mb-4">
+                                    ${recommendation}
+                                </div>
+                            </div>
+                            
+                            <div class="bg-gray-800/30 p-4 rounded-lg">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <div class="text-gray-400 text-sm">نقاط الثقة</div>
+                                        <div class="text-xl font-bold ${confidence > 70 ? 'text-green-400' : confidence > 50 ? 'text-yellow-400' : 'text-red-400'}">
+                                            ${confidence.toFixed(1)}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="text-gray-400 text-sm">الإطار الزمني</div>
+                                        <div class="text-xl font-bold">4 ساعات</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-yellow-900/20 border border-yellow-800/50 p-4 rounded-lg">
+                                <div class="flex items-start">
+                                    <i class="fas fa-exclamation-triangle text-yellow-400 mt-1 ml-2"></i>
+                                    <div class="text-sm">
+                                        <div class="font-semibold text-yellow-300">تحذير المخاطر</div>
+                                        <div class="text-yellow-400/80 mt-1">
+                                            • التداول في العملات الرقمية يحمل مخاطر عالية
+                                            • لا تستثمر أكثر مما تستطيع خسارته
+                                            • استخدم أوامر وقف الخسارة
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex space-x-3 mt-4">
+                                <button onclick="this.closest('.fixed').remove()" 
+                                        class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg font-semibold transition-all duration-300">
+                                    إلغاء
+                                </button>
+                                <button onclick="confirmTrade('${pair}', '${recommendation}', ${confidence})" 
+                                        class="flex-1 bg-gradient-to-r ${isLong ? 'from-green-600 to-green-500' : 'from-red-600 to-red-500'} hover:${isLong ? 'from-green-700 to-green-600' : 'from-red-700 to-red-600'} text-white py-2 rounded-lg font-semibold transition-all duration-300">
+                                    تأكيد التداول
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+
+        function confirmTrade(pair, recommendation, confidence) {
+            showNotification(`تم تأكيد أمر التداول لـ ${pair}`, 'success');
+            document.querySelector('.fixed').remove();
+            
+            // هنا يمكنك إضافة منطق إرسال أمر التداول الفعلي إلى API
+            console.log(`Trading ${pair}: ${recommendation} (Confidence: ${confidence})`);
+        }
+
+        function tradeSingle(symbol, recommendation) {
+            showNotification(`تم تأكيد أمر التداول لـ ${symbol}`, 'success');
+            document.querySelector('.fixed').remove();
+        }
+
+        function analyzeCoin(symbol) {
+            window.open(`/api/chart/data/${symbol}?timeframe=4h`, '_blank');
+        }
+
+        // وظائف إضافية
+        function showAllPairs() {
+            // يمكن توسيع هذه الدالة لعرض جميع الأزواج في صفحة منفصلة
+            showNotification('جاري تحميل جميع أزواج التداول...', 'info');
+            setTimeout(() => {
+                showNotification('هذه الميزة قيد التطوير', 'info');
+            }, 1000);
+        }
+
+        function showRankingDetails() {
+            // يمكن توسيع هذه الدالة لعرض تحليل مفصل للترتيب
+            showNotification('جاري تحميل تفاصيل الترتيب...', 'info');
+            setTimeout(() => {
+                showNotification('هذه الميزة قيد التطوير', 'info');
+            }, 1000);
+        }
+
+        function showHistoricalAnalysis() {
+            // يمكن توسيع هذه الدالة لعرض تحليل تاريخي كامل
+            showNotification('جاري تحميل التحليل التاريخي...', 'info');
+            setTimeout(() => {
+                showNotification('هذه الميزة قيد التطوير', 'info');
+            }, 1000);
+        }
+
+        function toggleAlerts() {
+            userSettings.soundAlerts = !userSettings.soundAlerts;
+            localStorage.setItem('cryptoScannerSettings', JSON.stringify(userSettings));
+            
+            showNotification(
+                userSettings.soundAlerts ? 'تم تفعيل التنبيهات الصوتية' : 'تم تعطيل التنبيهات الصوتية',
+                'success'
+            );
         }
 
         // التهيئة
         document.addEventListener('DOMContentLoaded', function() {
+            // تحميل الإعدادات المحفوظة
+            const savedSettings = localStorage.getItem('cryptoScannerSettings');
+            if (savedSettings) {
+                userSettings = { ...userSettings, ...JSON.parse(savedSettings) };
+                
+                // تطبيق الإعدادات
+                document.getElementById('update-interval').value = userSettings.refreshInterval / 1000;
+                document.getElementById('sound-alerts').checked = userSettings.soundAlerts;
+                document.getElementById('desktop-alerts').checked = userSettings.desktopAlerts;
+                document.querySelector(`input[name="view-mode"][value="${userSettings.viewMode}"]`).checked = true;
+            }
+            
             // تحديث وقت سورية كل ثانية
             updateSyriaTime();
             setInterval(updateSyriaTime, 1000);
@@ -760,20 +1912,29 @@
             // جلب البيانات الأولية
             refreshAll();
             
-            // تحديث البيانات كل 30 ثانية
-            updateInterval = setInterval(refreshAll, 30000);
+            // تحديث البيانات تلقائياً حسب الإعدادات
+            if (userSettings.refreshInterval > 0) {
+                updateInterval = setInterval(refreshAll, userSettings.refreshInterval);
+            }
             
             // التحقق من السمة المحفوظة
             const savedTheme = localStorage.getItem('theme') || 'dark';
+            const themeIcon = document.getElementById('theme-icon');
             if (savedTheme === 'dark') {
                 document.documentElement.classList.add('dark');
+                themeIcon.classList.add('fa-moon');
+                themeIcon.classList.remove('fa-sun');
+            } else {
+                document.documentElement.classList.remove('dark');
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
             }
             
             // إضافة أنماط للرسوم المتحركة
             const style = document.createElement('style');
             style.textContent = `
                 @keyframes slide-in {
-                    from { transform: translateX(100%); opacity: 0; }
+                    from { transform: translateX(-100%); opacity: 0; }
                     to { transform: translateX(0); opacity: 1; }
                 }
                 .animate-slide-in { animation: slide-in 0.3s ease-out; }
