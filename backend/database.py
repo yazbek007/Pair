@@ -1,5 +1,6 @@
 import sqlite3
 import json
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 import pandas as pd
@@ -10,72 +11,90 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:
-    def __init__(self, db_path: str = "data/crypto_scanner.db"):
+    def __init__(self, db_path: str = None):
+        if db_path is None:
+            # على Render، استخدم المسار الحالي
+            db_path = os.path.join(os.getcwd(), "crypto_scanner.db")
+        
+        # تأكد من وجود المسار
+        db_dir = os.path.dirname(db_path)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir, exist_ok=True)
+            logger.info(f"Created database directory: {db_dir}")
+        
         self.db_path = db_path
+        logger.info(f"Database path: {self.db_path}")
         self.init_database()
     
     def init_database(self):
         """تهيئة قاعدة البيانات والجداول"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        # جدول تحليل العملات
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS coin_analysis (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp DATETIME,
-                symbol TEXT,
-                price_usdt REAL,
-                price_btc REAL,
-                score REAL,
-                rank INTEGER,
-                recommendation TEXT,
-                returns_vs_btc TEXT,
-                rsi REAL,
-                atr_percent REAL,
-                volume_usd REAL,
-                spread_percent REAL,
-                signals TEXT
-            )
-        ''')
-        
-        # جدول أزواج التداول
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS trading_pairs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp DATETIME,
-                pair TEXT,
-                score_difference REAL,
-                performance_difference_4h REAL,
-                pair_score REAL,
-                recommendation TEXT,
-                entry_logic TEXT
-            )
-        ''')
-        
-        # جدول الإشعارات
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS notifications (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp DATETIME,
-                type TEXT,
-                title TEXT,
-                message TEXT,
-                sent INTEGER DEFAULT 0
-            )
-        ''')
-        
-        # جدول إعدادات النظام
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS system_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT,
-                updated_at DATETIME
-            )
-        ''')
-        
-        conn.commit()
-        conn.close()
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # جدول تحليل العملات
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS coin_analysis (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp DATETIME,
+                    symbol TEXT,
+                    price_usdt REAL,
+                    price_btc REAL,
+                    score REAL,
+                    rank INTEGER,
+                    recommendation TEXT,
+                    returns_vs_btc TEXT,
+                    rsi REAL,
+                    atr_percent REAL,
+                    volume_usd REAL,
+                    spread_percent REAL,
+                    signals TEXT
+                )
+            ''')
+            
+            # جدول أزواج التداول
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS trading_pairs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp DATETIME,
+                    pair TEXT,
+                    score_difference REAL,
+                    performance_difference_4h REAL,
+                    pair_score REAL,
+                    recommendation TEXT,
+                    entry_logic TEXT
+                )
+            ''')
+            
+            # جدول الإشعارات
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp DATETIME,
+                    type TEXT,
+                    title TEXT,
+                    message TEXT,
+                    sent INTEGER DEFAULT 0
+                )
+            ''')
+            
+            # جدول إعدادات النظام
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT,
+                    updated_at DATETIME
+                )
+            ''')
+            
+            conn.commit()
+            conn.close()
+            logger.info("Database initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"Error initializing database: {e}")
+            raise
+    
     
     def get_syria_time(self):
         """الحصول على الوقت الحالي بتوقيت سورية"""
