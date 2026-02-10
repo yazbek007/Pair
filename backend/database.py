@@ -161,27 +161,63 @@ class DatabaseManager:
     
     def get_recent_analysis(self, hours: int = 24, limit: int = 50) -> pd.DataFrame:
         """الحصول على التحليلات الحديثة"""
-        conn = sqlite3.connect(self.db_path)
-        
-        cutoff = self.get_syria_time() - timedelta(hours=hours)
-        
-        query = '''
-            SELECT * FROM coin_analysis 
-            WHERE timestamp >= ? 
-            ORDER BY timestamp DESC 
-            LIMIT ?
-        '''
-        
-        df = pd.read_sql_query(query, conn, params=(cutoff, limit))
-        conn.close()
-        
-        # تحويل الحقول JSON
-        if not df.empty and 'returns_vs_btc' in df.columns:
-            df['returns_vs_btc'] = df['returns_vs_btc'].apply(json.loads)
-        if not df.empty and 'signals' in df.columns:
-            df['signals'] = df['signals'].apply(json.loads)
-        
-        return df
+        try:
+            conn = sqlite3.connect(self.db_path)
+            
+            cutoff = self.get_syria_time() - timedelta(hours=hours)
+            
+            query = '''
+                SELECT * FROM coin_analysis 
+                WHERE timestamp >= ? 
+                ORDER BY timestamp DESC 
+                LIMIT ?
+            '''
+            
+            df = pd.read_sql_query(query, conn, params=(cutoff, limit))
+            conn.close()
+            
+            if df.empty:
+                logger.warning(f"No analysis data found for last {hours} hours")
+                return df
+            
+            # تحويل الحقول JSON
+            if 'returns_vs_btc' in df.columns:
+                try:
+                    df['returns_vs_btc'] = df['returns_vs_btc'].apply(
+                        lambda x: json.loads(x) if x and x != 'null' else {}
+                    )
+                except Exception as e:
+                    logger.warning(f"Error parsing returns_vs_btc: {e}")
+                    df['returns_vs_btc'] = df['returns_vs_btc'].apply(lambda x: {})
+            
+            if 'signals' in df.columns:
+                try:
+                    df['signals'] = df['signals'].apply(
+                        lambda x: json.loads(x) if x and x != 'null' else []
+                    )
+                except Exception as e:
+                    logger.warning(f"Error parsing signals: {e}")
+                    df['signals'] = df['signals'].apply(lambda x: [])
+            
+            # تحويل الأنواع
+            numeric_columns = ['price_usdt', 'price_btc', 'score', 'rsi', 'atr_percent', 
+                              'volume_usd', 'spread_percent']
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+            # ملء القيم NaN
+            df['score'] = df['score'].fillna(0)
+            df['rank'] = df['rank'].fillna(0)
+            df['recommendation'] = df['recommendation'].fillna('NEUTRAL')
+            
+            logger.info(f"Retrieved {len(df)} recent analysis records")
+            return df
+            
+        except Exception as e:
+            logger.error(f"Error in get_recent_analysis: {e}")
+            # إرجاع DataFrame فارغ بدلاً من رفع خطأ
+            return pd.DataFrame()
     
     def get_top_pairs_history(self, days: int = 7, limit_per_day: int = 5) -> List[Dict]:
         """الحصول على تاريخ أفضل الأزواج"""
