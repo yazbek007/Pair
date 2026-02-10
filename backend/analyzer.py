@@ -68,7 +68,7 @@ class CryptoAnalyzer:
             if 30 < coin.rsi < 70:
                 momentum_score = 1.0
             elif coin.rsi >= 70:
-                momentum_score = 0.7  |  # ارتفاع شديد - قد يكون ذروة شراء
+                momentum_score = 0.7    # ارتفاع شديد - قد يكون ذروة شراء
             elif coin.rsi <= 30:
                 momentum_score = 0.7  # انخفاض شديد - قد يكون ذروة بيع
         score += momentum_score * SCORE_WEIGHTS["momentum"] * 100
@@ -79,7 +79,7 @@ class CryptoAnalyzer:
             if 1.0 <= coin.atr_percent <= VOLATILITY_THRESHOLD:
                 volatility_score = 1.0
             elif coin.atr_percent < 1.0:
-                volatility_score = 0.5  |  # سوق هادئ جداً
+                volatility_score = 0.5    # سوق هادئ جداً
             else:
                 volatility_score = 0.3  # سوق فوضوي
         score += volatility_score * SCORE_WEIGHTS["volatility_score"] * 100
