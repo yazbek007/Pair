@@ -177,7 +177,7 @@ class CryptoScheduler:
             # إرسال أفضل أزواج التداول
             if analysis_data['top_pairs']:
                 best_pair = analysis_data['top_pairs'][0]
-                if best_pair['pair_score'] > 60:  |  # إرسال فقط إذا كانت النقطة > 60
+                if best_pair['pair_score'] > 60:    # إرسال فقط إذا كانت النقطة > 60
                     notifier.send_trading_signal(
                         pair=best_pair['pair'],
                         signal=best_pair['recommendation'],
