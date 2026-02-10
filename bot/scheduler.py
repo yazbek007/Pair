@@ -31,7 +31,7 @@ class CryptoScheduler:
         try:
             # جلب بيانات BTC أولاً
             btc_data = await data_fetcher.fetch_ticker("BTC/USDT")
-            btc_ohlcv = await data_fetcher.fetch_ohlcv("BTC/USDT", "1h", 100)
+            btc_ohlcv = await data_fetcher.fetch_ohlcv("BTC/USDT", "1h", 200)
             
             if not btc_data or btc_ohlcv is None:
                 raise Exception("Failed to fetch BTC data")
@@ -65,7 +65,7 @@ class CryptoScheduler:
                 # جلب البيانات
                 ticker_usdt = await data_fetcher.fetch_ticker(symbol_usdt)
                 ticker_btc = await data_fetcher.fetch_ticker(symbol_btc)
-                ohlcv = await data_fetcher.fetch_ohlcv(symbol_usdt, "1h", 100)
+                ohlcv = await data_fetcher.fetch_ohlcv(symbol_usdt, "1h", 200)
                 
                 if not ticker_usdt or ohlcv is None:
                     continue
