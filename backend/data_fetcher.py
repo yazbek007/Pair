@@ -61,24 +61,48 @@ class CryptoDataFetcher:
             logger.error(f"Error fetching {symbol} {timeframe}: {e}")
             return None
     
-    async def fetch_ticker(self, symbol: str):
-        """جلب بيانات التيكر الحالية"""
-        try:
-            ticker = await asyncio.to_thread(self.exchange.fetch_ticker, symbol)
-            return {
-                'symbol': symbol,
-                'last': ticker['last'],
-                'bid': ticker['bid'],
-                'ask': ticker['ask'],
-                'volume': ticker['quoteVolume'],
-                'high': ticker['high'],
-                'low': ticker['low'],
-                'change': ticker['percentage'],
-                'spread': (ticker['ask'] - ticker['bid']) / ticker['ask'] * 100
-            }
-        except Exception as e:
-            logger.error(f"Error fetching ticker {symbol}: {e}")
-            return None
+        async def fetch_ticker(self, symbol: str):
+            """جلب بيانات التيكر الحالية"""
+            try:
+                ticker = await asyncio.to_thread(self.exchange.fetch_ticker, symbol)
+            
+                if not ticker:
+                    logger.warning(f"Empty ticker response for {symbol}")
+                    return None
+            
+                # استخراج القيم مع قيم افتراضية
+                last = ticker.get('last')
+                bid = ticker.get('bid')
+                ask = ticker.get('ask')
+                volume = ticker.get('quoteVolume', ticker.get('baseVolume', 0))
+                high = ticker.get('high')
+                low = ticker.get('low')
+                change = ticker.get('percentage', 0)
+            
+                # إذا كانت البيانات الأساسية غير متوفرة، تخطى هذا الزوج
+                if last is None:
+                    logger.warning(f"No price data for {symbol}")
+                    return None
+            
+                # حساب spread بأمان
+                spread = 0.0
+                if ask and bid and ask > 0:
+                    spread = ((ask - bid) / ask) * 100
+            
+                return {
+                    'symbol': symbol,
+                    'last': float(last) if last else 0.0,
+                    'bid': float(bid) if bid else 0.0,
+                    'ask': float(ask) if ask else 0.0,
+                    'volume': float(volume) if volume else 0.0,
+                    'high': float(high) if high else None,
+                    'low': float(low) if low else None,
+                    'change': float(change) if change else 0.0,
+                    'spread': spread
+                }
+            except Exception as e:
+                logger.error(f"Error fetching ticker {symbol}: {e}")
+                return None
     
     async def fetch_multiple_tickers(self, symbols: List[str]):
         """جلب بيانات متعددة بشكل متزامن"""
