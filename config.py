@@ -9,7 +9,7 @@ API_UPDATE_INTERVAL = 15  # دقائق
 # === قائمة العملات المراقبة ===
 COINS_TO_MONITOR = [
     "BTC", "ETH", "BNB", "XRP", "ADA", 
-    "SOL", "DOGE", "DOT", "MATIC", "AVAX",
+    "SOL", "DOGE", "DOT", "AVAX",
     "LTC", "UNI", "LINK", "ATOM", "XLM"
 ]
 
